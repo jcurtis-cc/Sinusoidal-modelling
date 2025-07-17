@@ -8,9 +8,9 @@
 __author__ = "Patrice Guyot"
 __version__ = "0.1"
 __credits__ = ["Patrice Guyot", "Alice Eldridge", "Mika Peck"]
-__email__ = ["guyot.patrice@gmail.com", "alicee@sussex.ac.uk", "m.r.peck@sussex.ac.uk"]
+__email__ = ["guyot.patrice@gmail.com",
+             "alicee@sussex.ac.uk", "m.r.peck@sussex.ac.uk"]
 __status__ = "Development"
-
 
 
 from scipy.io.wavfile import read as wavread
@@ -22,10 +22,9 @@ from os import path
 import pickle
 
 
-
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 #                           Signal function
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 def pcm2float(samples, dtype='float64'):
     """Convert PCM signal to floating point with a range from -1 to 1.
 
@@ -46,22 +45,23 @@ def pcm2float(samples, dtype='float64'):
 
     """
     sig = np.asarray(samples)
-    if sig.dtype.kind not in 'iu':
-        raise TypeError("'sig' must be an array of integers")
+
     dtype = np.dtype(dtype)
     if dtype.kind != 'f':
         raise TypeError("'dtype' must be a floating point type")
 
-    i = np.iinfo(sig.dtype)
-    abs_max = 2 ** (i.bits - 1)
-    offset = i.min + abs_max
-    return (sig.astype(dtype) - offset) / abs_max
+    if sig.dtype.kind in 'iu':
+        i = np.iinfo(sig.dtype)
+        abs_max = 2 ** (i.bits - 1)
+        offset = i.min + abs_max
+        return (sig.astype(dtype) - offset) / abs_max
+    return sig.astype(dtype)
 
-
-
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 #                           Spectrogram functions
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+
+
 def get_spectrogram(samples, sr, max_freq=None):
     """
 
@@ -82,20 +82,18 @@ def get_spectrogram(samples, sr, max_freq=None):
 
     w = 256
 
-    imax = max_freq/(sr/2) * 1024
+    imax = int(max_freq/(sr/2) * 1024)
     win = hamming(2*w)
     time_line = [t for t in range(w, len(samples)-w, w)]
     freq_line = linspace(1, sr/2, 1024)
     freq_line = freq_line[:imax]
     frames = [win*samples[t-w:t+w] for t in time_line]
-    return map(list, zip(*map(lambda x: map(abs, rfft(x, 2048)[:imax]), frames))),\
-           [float(time_line[0])/sr, float(time_line[-1])/sr, freq_line[0], freq_line[-1]]
+    return list(map(list, zip(*map(lambda x: map(abs, rfft(x, 2048)[:imax]), frames)))), \
+        [float(time_line[0])/sr, float(time_line[-1]) /
+         sr, freq_line[0], freq_line[-1]]
 
 
-
-
-
-#--------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------
 def mean_spectro(samples, sr, w_length=0.032, w_step=0.016, low_freq=0.0, high_freq=None, n_bins=1024, windowing_function='hamming'):
     """
     This function output the mean of the spectrogram (as computed in the "get_trackings" function)
@@ -113,7 +111,6 @@ def mean_spectro(samples, sr, w_length=0.032, w_step=0.016, low_freq=0.0, high_f
 
     from numpy import fft
 
-
     demi = int(w_length*sr)
 
     time_line_samples = range(demi, len(samples), int(w_step*sr))
@@ -127,27 +124,23 @@ def mean_spectro(samples, sr, w_length=0.032, w_step=0.016, low_freq=0.0, high_f
 
     for time, current_frame in zip(time_line, frames):
 
-
-
         if windowing_function is not None:
-            W = signal.get_window(windowing_function, len(current_frame), fftbins=False)
+            W = signal.get_window(windowing_function, len(
+                current_frame), fftbins=False)
             current_frame = current_frame * W
 
-        spectrum = map(abs, fft.rfft(current_frame, n=2*n_bins)[low_freq_id:high_freq_id])
-        spectrogram += [spectrum]
-
+        spectrum = map(abs, fft.rfft(current_frame, n=2*n_bins)
+                       [low_freq_id:high_freq_id])
+        spectrogram += list(spectrum)
 
     s = np.array(spectrogram)
-    s1= np.mean(s,axis=0)
+    s1 = np.mean(s, axis=0)
     return 20*np.log10(s1)
 
 
-
-
-
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 #                           Partial tracking class and functions
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 class Node(object):
 
     def __init__(self, frequency, amplitude, time):
@@ -172,10 +165,10 @@ class Node(object):
 
     def tani_dist(self, node):
         return np.sqrt(((self.cent_freq-node.cent_freq)/Node.tani_cf)**2 +
-                    ((np.log10(self.amplitude) - np.log10(node.amplitude))/Node.tani_cp) ** 2)
+                       ((np.log10(self.amplitude) - np.log10(node.amplitude))/Node.tani_cp) ** 2)
 
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 class Tracking(object):
 
     cmpt = 0
@@ -189,15 +182,15 @@ class Tracking(object):
         self.last_node = node
         self.active = True
         self.id = Tracking.cmpt
-        Tracking.cmpt +=1
+        Tracking.cmpt += 1
 
     def __repr__(self):
         return "Tracking %d" % self.id
 
     def get_node_at(self, time):
 
-        for n in self.nodes :
-            if n.time == time :
+        for n in self.nodes:
+            if n.time == time:
                 return n
         return None
 
@@ -212,11 +205,9 @@ class Tracking(object):
             return False
 
 
-
-
-#-------------------------------------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------------------
 def get_trackings(samples, sr, w_length=0.032, w_step=0.016, low_freq=0.0, high_freq=None, n_bins=2048, n_peaks=5,
-                  min_len=5, windowing_function='hamming', tani_cp = 3.0, tani_cf=100.0, threshold_dB=-25):
+                  min_len=5, windowing_function='hamming', tani_cp=3.0, tani_cf=100.0, threshold_dB=-25):
     """
 
     get_tracking creates Nodes and Tracks form an audio file.
@@ -252,7 +243,7 @@ def get_trackings(samples, sr, w_length=0.032, w_step=0.016, low_freq=0.0, high_
     time_line_samples = range(demi, len(samples), int(w_step*sr))
     time_line = map(lambda x: float(x)/sr, time_line_samples)
     frames = [samples[t-demi:t+demi] for t in time_line_samples]
-    low_freq_id = max([low_freq/(sr/2)*n_bins, 1])
+    low_freq_id = int(max([low_freq/(sr/2)*n_bins, 1]))
     if high_freq is None:
         high_freq = sr/2
     high_freq_id = int(float(high_freq)/(sr/2)*n_bins)
@@ -263,12 +254,14 @@ def get_trackings(samples, sr, w_length=0.032, w_step=0.016, low_freq=0.0, high_
         active_trackings = [t for t in trackings if t.active]
 
         if windowing_function is not None:
-            W = signal.get_window(windowing_function, len(current_frame), fftbins=False)
+            W = signal.get_window(windowing_function, len(
+                current_frame), fftbins=False)
             current_frame = current_frame * W
 
-        spectrum = map(abs, fft.rfft(current_frame, n=2*n_bins)[low_freq_id:high_freq_id])
-        spectrum_dB = 20*np.log10(spectrum) # Pat
-        spectrogram += [spectrum]
+        spectrum = list(map(abs, fft.rfft(current_frame, n=2*n_bins)
+                            [low_freq_id:high_freq_id]))
+        spectrum_dB = 20*np.log10(spectrum)  # Pat
+        spectrogram += spectrum
 
         # Find greatest peaks
         peaks = sorted([Node(frequency_line[low_freq_id+i], spectrum[i], time)
@@ -298,12 +291,10 @@ def get_trackings(samples, sr, w_length=0.032, w_step=0.016, low_freq=0.0, high_
     return trackings
 
 
-
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 #                           Stats from tracking function
-#----------------------------------------------------------------------------
-def stats_peak(trackings, time_begin, time_end, frequency_low, frequency_high, nb_f_quadrat = 10, nb_t_quadrat=10):
-
+# ----------------------------------------------------------------------------
+def stats_peak(trackings, time_begin, time_end, frequency_low, frequency_high, nb_f_quadrat=10, nb_t_quadrat=10):
     """
 
     stats_peak output stats about the distribution of the peaks
@@ -322,93 +313,95 @@ def stats_peak(trackings, time_begin, time_end, frequency_low, frequency_high, n
     """
 
     peaks = [list(t.nodes) for t in trackings]
-    peaks2 = [item for sublist in peaks for item in sublist] #flatten the list of list to list
-    peaks_centered = sorted([ [p.time - time_begin, p.frequency - frequency_low] for p in peaks2])
+    # flatten the list of list to list
+    peaks2 = [item for sublist in peaks for item in sublist]
+    peaks_centered = sorted(
+        [[p.time - time_begin, p.frequency - frequency_low] for p in peaks2])
 
     f_quandrant_size = (frequency_high - frequency_low)/float(nb_f_quadrat)
     t_quandrant_size = (time_end - time_begin)/float(nb_t_quadrat)
 
-    quadrats= sorted([ [int(t/t_quandrant_size), int(f/f_quandrant_size)] for t,f in peaks_centered])
-    quadrats_values = [[t,f] for t in range(nb_t_quadrat) for f in range(nb_f_quadrat)]
-    quadrat_distribution = [[x,quadrats.count(x)] for x in quadrats_values] #-> [[coordinate of the quadrat, nb_values]...]
+    quadrats = sorted([[int(t/t_quandrant_size), int(f/f_quandrant_size)]
+                      for t, f in peaks_centered])
+    quadrats_values = [[t, f]
+                       for t in range(nb_t_quadrat) for f in range(nb_f_quadrat)]
+    # -> [[coordinate of the quadrat, nb_values]...]
+    quadrat_distribution = [[x, quadrats.count(x)] for x in quadrats_values]
 
     D = len(peaks_centered)/float(len(quadrats_values))
 
-    values = sorted([[number_peaks, [b for [_,b] in quadrat_distribution].count(number_peaks)] for number_peaks in set([b for [_,b] in quadrat_distribution])]) # -> [[nb_values, nb_quadrats]...]
+    values = sorted([[number_peaks, [b for [_, b] in quadrat_distribution].count(number_peaks)]
+                    for number_peaks in set([b for [_, b] in quadrat_distribution])])  # -> [[nb_values, nb_quadrats]...]
 
-    ci = (np.sum( [K*(n - D)**2 for [n,K] in values]) / (float(len(quadrats_values)-1))/D)
-    ratio_quadrat_with_peaks = len([b for [_,b] in quadrat_distribution if b>0])/float(len(quadrat_distribution))
+    ci = (np.sum([K*(n - D)**2 for [n, K] in values]) /
+          (float(len(quadrats_values)-1))/D)
+    ratio_quadrat_with_peaks = len(
+        [b for [_, b] in quadrat_distribution if b > 0])/float(len(quadrat_distribution))
 
     return ratio_quadrat_with_peaks, ci, len(peaks_centered)
 
 
-
-
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 #                                       Main
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 if __name__ == '__main__':
 
-
     # Audio files
-    file_path='audio/BALMER-01_0_20150621_0317.wav'
-    #file_path='audio/PL-11_0_20150603_0645.wav'
-    #file_path='audio/KNEPP-10_0_20150510_0445.wav'
-    #file_path='audio/KNEPP-11_0_20150511_0545.wav'
-
+    file_path = 'audio/BALMER-01_0_20150621_0317.wav'
+    # file_path='audio/PL-11_0_20150603_0645.wav'
+    # file_path='audio/KNEPP-10_0_20150510_0445.wav'
+    # file_path='audio/KNEPP-11_0_20150511_0545.wav'
 
     # Output csv file
     output_csv_file = 'results.csv'
     output = dict()
-    output['path']= file_path
-    output['filename']= path.basename(file_path)
-
+    output['path'] = file_path
+    output['filename'] = path.basename(file_path)
 
     # Reading of the audio file
-    print 'Read the audio file:', file_path
+    print('Read the audio file:', file_path)
     sr, sig = wavread(file_path)
-    samples = pcm2float(sig,dtype='float64')
-
-
+    samples = pcm2float(sig, dtype='float64')
 
     # Compute the average value of the spectrogram
 
-    low_freq=0.0
-    high_freq=10000
-    n_bins=2048
+    low_freq = 0.0
+    high_freq = 10000
+    n_bins = 2048
 
     low_freq_id = int(max([low_freq/(sr/2)*n_bins, 1]))
     high_freq_id = int(float(high_freq)/(sr/2)*n_bins)
 
-    m = mean_spectro(samples, sr, low_freq=low_freq, high_freq=high_freq, n_bins=n_bins)
-    print 'Mean of the spectrum:', np.mean(m), 'dB'
+    m = mean_spectro(samples, sr, low_freq=low_freq,
+                     high_freq=high_freq, n_bins=n_bins)
+    print('Mean of the spectrum:', np.mean(m), 'dB')
     threshold_dB = np.mean(m) + 9
 
-
     # Partial Tracking
-    print '- Partial tracking'
+    print('- Partial tracking')
 
-    low_freq=1600.0
-    high_freq=8000.0
+    low_freq = 1600.0
+    high_freq = 8000.0
     tani_cp = 1.0
     tani_cf = 200.0
-    trackings = get_trackings(samples, sr, low_freq=low_freq, high_freq=high_freq, n_peaks=5, min_len=10, tani_cp=tani_cp, tani_cf=tani_cf, threshold_dB=threshold_dB)
+    trackings = get_trackings(samples, sr, low_freq=low_freq, high_freq=high_freq,
+                              n_peaks=5, min_len=10, tani_cp=tani_cp, tani_cf=tani_cf, threshold_dB=threshold_dB)
 
     # Result analysis
     partials_number = len(trackings)
-    if partials_number>0:
-        ratio_quadrat_with_peaks, ci, nb_peaks = stats_peak(trackings, time_begin=0, time_end=len(sig)/float(sr), frequency_low=low_freq, frequency_high=high_freq, nb_f_quadrat= 12, nb_t_quadrat=60)#->version9
+    if partials_number > 0:
+        ratio_quadrat_with_peaks, ci, nb_peaks = stats_peak(trackings, time_begin=0, time_end=len(
+            sig)/float(sr), frequency_low=low_freq, frequency_high=high_freq, nb_f_quadrat=12, nb_t_quadrat=60)  # ->version9
     else:
-        ratio_quadrat_with_peaks=0
-        IC=1
-        nb_peaks=0
+        ratio_quadrat_with_peaks = 0
+        IC = 1
+        nb_peaks = 0
 
-
-    print '- Stats - '
-    print "Number of tracks:", partials_number
-    print 'Number of peaks:', nb_peaks
-    print 'ci:', ci
-    print 'Ratio peaks in quadrats:', ratio_quadrat_with_peaks
+    print('- Stats - ')
+    print("Number of tracks:", partials_number)
+    print('Number of peaks:', nb_peaks)
+    print('ci:', ci)
+    print('Ratio peaks in quadrats:', ratio_quadrat_with_peaks)
 
     # plot spectrogram and tracks -------------------------------------------
     plot_spectro = 1
@@ -418,64 +411,66 @@ if __name__ == '__main__':
 
         for t in trackings:
             nodes = sorted(t.nodes, key=lambda x: x.time)
-            plt.plot([n.time for n in nodes], [n.frequency for n in nodes], "k")
-        plt.show()
-
+            plt.plot([n.time for n in nodes], [
+                     n.frequency for n in nodes], "k")
+        plt.show(block=False)
 
     # Write a pkl file  -------------------------------------
     write_pkl = 0
     if write_pkl:
-        output_pickle_file='output_pkl/' + path.splitext(path.basename(file_path))[0] +'.pkl'
-        print '- Write tracks in:', output_pickle_file
+        output_pickle_file = 'output_pkl/' + \
+            path.splitext(path.basename(file_path))[0] + '.pkl'
+        print('- Write tracks in:', output_pickle_file)
         # Create a list of partials
-        list_partials=[]
+        list_partials = []
         for t in trackings:
-            list_nodes=[]
+            list_nodes = []
             for n in t.nodes:
-                list_nodes.append([n.time, n.frequency, 20*np.log10(n.amplitude)])
+                list_nodes.append(
+                    [n.time, n.frequency, 20*np.log10(n.amplitude)])
             list_partials.append(list_nodes)
 
         # Write it with pickle
         with open(output_pickle_file, 'wb') as f:
             pickle.dump(list_partials, f)
 
-
     # Remove superposed tracks -------------------------------------
-    print "- Removing superposed tracks:"
-    w_length=0.032
-    w_step=0.016
+    print("- Removing superposed tracks:")
+    w_length = 0.032
+    w_step = 0.016
     time_line_samples = range(int(w_length*sr), len(samples), int(w_step*sr))
     overlaps = np.zeros(time_line_samples[-1])
 
     removed_partials = 0
     if partials_number > 0:
-         starts = [t.start for t in trackings]
-         stops = [t.stop for t in trackings]
-         for start, stop in zip(starts,stops):
-             overlaps[start*sr:stop*sr] += 1
-             if np.all(overlaps[start*sr:stop*sr]>1):
-                 tracks = [x for x in trackings if x.start == start]
-                 trackings.remove(tracks[0])
-                 removed_partials +=1
-                 overlaps[start*sr:stop*sr] -= 1
+        starts = [t.start for t in trackings]
+        stops = [t.stop for t in trackings]
+        for start, stop in zip(starts, stops):
+            start_i = int(start * sr)
+            stop_i = int(stop * sr)
+            overlaps[start_i:stop_i] += 1
+            if np.all(overlaps[start_i:stop_i] > 1):
+                tracks = [x for x in trackings if x.start == start]
+                trackings.remove(tracks[0])
+                removed_partials += 1
+                overlaps[start_i:stop_i] -= 1
 
-    print "Removed tracks:", removed_partials
+    print("Removed tracks:", removed_partials)
     nb_tracks_removed = len(trackings)
-    print "Number of tracks (after removing):", nb_tracks_removed
-
+    print("Number of tracks (after removing):", nb_tracks_removed)
 
     # Output a csv file -------------------------------------
-    output['tracks_number']= nb_tracks_removed
+    output['tracks_number'] = nb_tracks_removed
     output['ratio_quadrat'] = ratio_quadrat_with_peaks
     output['CI'] = ci
     output['peaks_number'] = nb_peaks
 
     # Write the csv file
-    print '- Write Indices in:', output_csv_file
+    print('- Write Indices in:', output_csv_file)
     keys = []
     values = []
-    writer = csv.writer(open(output_csv_file, 'wb'))
-    for key, value in output.iteritems():
+    writer = csv.writer(open(output_csv_file, 'w'))
+    for key, value in output.items():
         keys.append(key)
         values.append(value)
 
