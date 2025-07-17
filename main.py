@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import csv
 from os import path
 import pickle
+import argparse
 
 
 # ----------------------------------------------------------------------------
@@ -345,15 +346,21 @@ def stats_peak(trackings, time_begin, time_end, frequency_low, frequency_high, n
 #                                       Main
 # ----------------------------------------------------------------------------
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("filepath", help="audio file path")
+    parser.add_argument("-o", "--output_csv", help="output csv file",
+                        default="results.csv")
+    parser.add_argument(
+        "--lowf", help="low frequency threshold for partial tracking", type=float, default=1600.0)
+    parser.add_argument(
+        "--highf", help="high frequency threshold for partial tracking", type=float, default=8000.0)
+    args = parser.parse_args()
 
     # Audio files
-    file_path = 'audio/BALMER-01_0_20150621_0317.wav'
-    # file_path='audio/PL-11_0_20150603_0645.wav'
-    # file_path='audio/KNEPP-10_0_20150510_0445.wav'
-    # file_path='audio/KNEPP-11_0_20150511_0545.wav'
+    file_path = args.filepath
 
     # Output csv file
-    output_csv_file = 'results.csv'
+    output_csv_file = args.output_csv
     output = dict()
     output['path'] = file_path
     output['filename'] = path.basename(file_path)
@@ -378,12 +385,11 @@ if __name__ == '__main__':
     threshold_dB = np.mean(m) + 9
 
     # Partial Tracking
-    print('- Partial tracking')
-
-    low_freq = 1600.0
-    high_freq = 8000.0
+    low_freq = args.lowf
+    high_freq = args.highf
     tani_cp = 1.0
     tani_cf = 200.0
+    print(f'- Partial tracking (lowf: {low_freq}, highf: {high_freq})')
     trackings = get_trackings(samples, sr, low_freq=low_freq, high_freq=high_freq,
                               n_peaks=5, min_len=10, tani_cp=tani_cp, tani_cf=tani_cf, threshold_dB=threshold_dB)
 
@@ -413,7 +419,8 @@ if __name__ == '__main__':
             nodes = sorted(t.nodes, key=lambda x: x.time)
             plt.plot([n.time for n in nodes], [
                      n.frequency for n in nodes], "k")
-        plt.show(block=False)
+        print("Showing spectro plot, close window to continue...")
+        plt.show()
 
     # Write a pkl file  -------------------------------------
     write_pkl = 0
